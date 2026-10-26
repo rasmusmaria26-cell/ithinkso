@@ -5,7 +5,8 @@
       "root": "client"
     },
     "server": {
-      "root": "server"
+      "root": "server",
+      "entrypoint": "src/app.ts"
     }
   },
   "rewrites": [
