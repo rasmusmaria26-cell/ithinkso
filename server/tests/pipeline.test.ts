@@ -146,7 +146,7 @@ describe("runPipeline", () => {
     // The route emits case_id before calling the pipeline, so the pipeline's
     // first event is the first step. (Asserted at the route level too.)
     expect(events[0]).toMatchObject({ type: "step" });
-    expect(events.at(-1)).toEqual({ type: "complete", case_id: "case123456" });
+    expect(events.at(-1)).toMatchObject({ type: "complete", case_id: "case123456" });
   });
 
   it("emits source_status for every source", async () => {
@@ -242,7 +242,7 @@ describe("runPipeline", () => {
     expect(llm.calls).toHaveLength(0);
     // Completes against the ORIGINAL case id, not the one we were handed.
     expect(outcome).toEqual({ kind: "complete", caseId: "cached0001" });
-    expect(events.at(-1)).toEqual({ type: "complete", case_id: "cached0001" });
+    expect(events.at(-1)).toMatchObject({ type: "complete", case_id: "cached0001" });
     // And no orphan running document for the new id.
     expect(await store.get("newcase001")).toBeNull();
   });

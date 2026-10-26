@@ -1124,7 +1124,7 @@ async function runPipeline(input) {
   if (cached) {
     emit({ type: "step", text: "Same idea as a recent case. Pulling the file." });
     emit({ type: "step", text: `Filed ${cached.case_id}. No new warrants needed.` });
-    emit({ type: "complete", case_id: cached.case_id });
+    emit({ type: "complete", case_id: cached.case_id, ...cached.result ? { result: cached.result } : {} });
     return { kind: "complete", caseId: cached.case_id };
   }
   emit({ type: "step", text: "Reading the idea. Splitting it into angles." });
@@ -1289,7 +1289,7 @@ async function runPipeline(input) {
       emit({ type: "step", text: "Filed, but the drawer stuck. Result is in the stream." });
     }
     emit({ type: "step", text: `Verdict filed. ${result.verdict.replace(/_/g, " ")}.` });
-    emit({ type: "complete", case_id: caseId });
+    emit({ type: "complete", case_id: caseId, result });
     return { kind: "complete", caseId };
   }
 }

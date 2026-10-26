@@ -87,6 +87,7 @@ export function useInvestigateStream(soundEnabled: boolean = false) {
         const decoder = new TextDecoder();
         let buffer = "";
         let finalCaseId: string | null = null;
+        let streamResult: CaseResult | null = null;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -150,6 +151,9 @@ export function useInvestigateStream(soundEnabled: boolean = false) {
 
                 case "complete":
                   finalCaseId = event.case_id;
+                  if (event.result) {
+                    streamResult = event.result;
+                  }
                   break;
               }
             } catch {
@@ -158,7 +162,18 @@ export function useInvestigateStream(soundEnabled: boolean = false) {
           }
         }
 
-        // Stream completed successfully, fetch final persisted case record
+        // 1. Direct result: if the complete frame provided the result, use it immediately
+        if (streamResult) {
+          setState((prev) => ({
+            ...prev,
+            isStreaming: false,
+            caseId: finalCaseId,
+            result: streamResult,
+          }));
+          return;
+        }
+
+        // 2. Recovery fallback: fetch final persisted case record
         if (finalCaseId) {
           let fetchedResult: CaseResult | null = null;
           // Retry up to 3 times with brief delays if MongoDB write has a micro-lag
@@ -185,6 +200,7 @@ export function useInvestigateStream(soundEnabled: boolean = false) {
               caseId: finalCaseId,
               result: fetchedResult,
             }));
+            return;
           } else {
             setState((prev) => ({
               ...prev,

@@ -70,7 +70,7 @@ export type ServerEvent =
   | { type: "source_status"; seq: number; status: SourceStatus }
   | { type: "clarify"; seq: number; question: string }
   | { type: "error"; seq: number; code: ErrorCode; message: string }
-  | { type: "complete"; seq: number; case_id: string };
+  | { type: "complete"; seq: number; case_id: string; result?: CaseResult };
 
 export type ColdCase = {
   case_id: string;

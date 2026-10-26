@@ -1,4 +1,4 @@
-import type { SourceStatus } from "./case.js";
+import type { CaseResult, SourceStatus } from "./case.js";
 
 /**
  * Server -> client stream events.
@@ -16,7 +16,7 @@ export type ServerEvent =
   | { type: "source_status"; seq: number; status: SourceStatus }
   | { type: "clarify"; seq: number; question: string }
   | { type: "error"; seq: number; code: ErrorCode; message: string }
-  | { type: "complete"; seq: number; case_id: string };
+  | { type: "complete"; seq: number; case_id: string; result?: CaseResult };
 
 /**
  * `Omit` does not distribute over a union — `Omit<ServerEvent, "seq">` collapses
