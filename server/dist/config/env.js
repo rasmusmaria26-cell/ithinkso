@@ -52,9 +52,6 @@ export function parseEnv(raw = process.env) {
         throw new EnvError(problems);
     }
     const env = result.data;
-    if (env.NODE_ENV === "production" && !env.GEMINI_API_KEY) {
-        throw new EnvError(["GEMINI_API_KEY: required in production"]);
-    }
     return env;
 }
 //# sourceMappingURL=env.js.map

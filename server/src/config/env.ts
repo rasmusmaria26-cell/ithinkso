@@ -68,9 +68,7 @@ export function parseEnv(raw: NodeJS.ProcessEnv = process.env): Env {
 
   const env = result.data;
 
-  if (env.NODE_ENV === "production" && !env.GEMINI_API_KEY) {
-    throw new EnvError(["GEMINI_API_KEY: required in production"]);
-  }
+
 
   return env;
 }

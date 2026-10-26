@@ -65,6 +65,10 @@ export function createApp(options: AppOptions) {
 
   app.use(express.json({ limit: "16kb" }));
 
+  app.get("/health", (_req, res) => {
+    res.json({ ok: true });
+  });
+
   app.get("/api/health", (_req, res) => {
     res.json({ ok: true });
   });
@@ -81,6 +85,7 @@ export function createApp(options: AppOptions) {
   );
   api.use(caseRoutes({ store }));
   app.use("/api", api);
+  app.use("/", api);
 
   // Share route reads index.html and injects OG tags. Must come before the
   // static/SPA fallback or it would never be reached.

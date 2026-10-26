@@ -2,48 +2,11 @@ import path from "node:path";
 import dotenv from "dotenv";
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), "../.env") });
-import mongoose from "mongoose";
 import { parseEnv } from "./config/env.js";
-import { MemoryCaseStore, MongoCaseStore } from "./db/store.js";
+import { MemoryCaseStore } from "./db/store.js";
 import { createApp } from "./index.js";
-let appInstance = null;
-async function getOrCreateApp() {
-    if (appInstance)
-        return appInstance;
-    const env = parseEnv(process.env);
-    let store;
-    const mongoUri = process.env.MONGODB_URI;
-    const isRemoteMongo = mongoUri && !mongoUri.includes("127.0.0.1") && !mongoUri.includes("localhost");
-    if (isRemoteMongo) {
-        try {
-            await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 3000 });
-            store = new MongoCaseStore();
-            console.log("[db] connected to remote MongoDB");
-        }
-        catch (err) {
-            console.warn("[db] MongoDB unreachable, falling back to memory store:", err);
-            store = new MemoryCaseStore();
-        }
-    }
-    else {
-        store = new MemoryCaseStore();
-    }
-    appInstance = createApp({ env, store });
-    return appInstance;
-}
-export default async function handler(req, res) {
-    try {
-        const app = await getOrCreateApp();
-        return app(req, res);
-    }
-    catch (err) {
-        console.error("[server-boot-error]", err);
-        if (!res.headersSent) {
-            res.status(500).json({
-                error: "server_initialization_error",
-                message: err?.message || "Server initialization failed",
-            });
-        }
-    }
-}
+const env = parseEnv(process.env);
+const store = new MemoryCaseStore();
+const app = createApp({ env, store });
+export default app;
 //# sourceMappingURL=app.js.map
