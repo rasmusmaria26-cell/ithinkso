@@ -1,7 +1,8 @@
 # deps
 node_modules/
 .pnpm-store/
-client/package-lock.json
+package-lock.json
+*/package-lock.json
 
 # builds
 dist/
