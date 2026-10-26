@@ -15,7 +15,6 @@
 import type { Env } from "../../config/env.js";
 import type { LlmAdapter, LlmJsonRequest, LlmJsonResult } from "./adapter.interface.js";
 
-const TIMEOUT_MS = 20_000;
 
 type GeminiResponse = {
   candidates?: Array<{ content?: { parts?: Array<{ text?: unknown }> } }>;
@@ -60,11 +59,18 @@ export type GeminiShape = "promoted" | "legacy";
 export function createGeminiAdapter(env: Env): LlmAdapter {
   const available = Boolean(env.GEMINI_API_KEY);
   const model = env.GEMINI_MODEL;
+  const timeoutMs = env.LLM_TIMEOUT_MS ?? 45_000;
 
   // Learned once per process; null means "unknown, try promoted first".
   let knownShape: GeminiShape | null = null;
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const candidateModels = [
+    model,
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+  ];
+  const modelsToTry = [...new Set(candidateModels)];
 
   const buildBody = (req: LlmJsonRequest, shape: GeminiShape) => ({
     contents: [{ parts: [{ text: req.user }] }],
@@ -87,10 +93,12 @@ export function createGeminiAdapter(env: Env): LlmAdapter {
   const call = async (
     req: LlmJsonRequest,
     shape: GeminiShape,
+    targetModel: string,
     signal?: AbortSignal,
   ): Promise<{ status: number; body: string }> => {
-    const deadline = AbortSignal.timeout(TIMEOUT_MS);
+    const deadline = AbortSignal.timeout(timeoutMs);
     const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent`;
 
     try {
       const res = await fetch(endpoint, {
@@ -105,7 +113,7 @@ export function createGeminiAdapter(env: Env): LlmAdapter {
       const body = await res.text();
       return { status: res.status, body };
     } catch (err) {
-      if (deadline.aborted) throw new Error(`timed out after ${TIMEOUT_MS}ms`);
+      if (deadline.aborted) throw new Error(`timed out after ${timeoutMs}ms`);
       if (signal?.aborted) throw new Error("cancelled");
       // Never include the URL or headers in the message — the key lives there.
       throw new Error(err instanceof Error ? err.name : "network error");
@@ -137,43 +145,60 @@ export function createGeminiAdapter(env: Env): LlmAdapter {
     async json(req: LlmJsonRequest): Promise<LlmJsonResult> {
       if (!available) return { ok: false, reason: "GEMINI_API_KEY not set", model };
 
-      const order: GeminiShape[] = knownShape
-        ? [knownShape]
-        : ["promoted", "legacy"];
-
       let lastReason = "unknown provider error";
 
-      for (const shape of order) {
-        try {
-          const res = await call(req, shape, req.signal);
+      for (const targetModel of modelsToTry) {
+        const order: GeminiShape[] = knownShape
+          ? [knownShape]
+          : ["promoted", "legacy"];
 
-          if (res.status === 400 && shape === "promoted" && !knownShape) {
-            // Shape mismatch is the expected 400 here; fall through to legacy.
-            lastReason = `400 on promoted shape: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`;
-            continue;
-          }
+        for (const shape of order) {
+          try {
+            const res = await call(req, shape, targetModel, req.signal);
 
-          if (res.status < 200 || res.status >= 300) {
+            if (res.status === 400 && shape === "promoted" && !knownShape) {
+              // Shape mismatch is the expected 400 here; fall through to legacy.
+              lastReason = `400 on promoted shape: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`;
+              continue;
+            }
+
+            // On 503 (high demand) or 404 (unavailable), try next model
+            if ((res.status === 503 || res.status === 404) && targetModel !== modelsToTry[modelsToTry.length - 1]) {
+              lastReason = `HTTP ${res.status} on ${targetModel}: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`;
+              break;
+            }
+
+            if (res.status < 200 || res.status >= 300) {
+              return {
+                ok: false,
+                reason: `HTTP ${res.status}: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`,
+                model: targetModel,
+              };
+            }
+
+            const value = parse(res.body);
+            knownShape = shape;
+            return { ok: true, value, model: targetModel, shape };
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : "provider error";
+            lastReason = msg;
+            if (targetModel !== modelsToTry[modelsToTry.length - 1]) {
+              break; // Try next candidate model
+            }
             return {
               ok: false,
-              reason: `HTTP ${res.status}: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`,
-              model,
+              reason: msg,
+              model: targetModel,
             };
           }
-
-          const value = parse(res.body);
-          knownShape = shape;
-          return { ok: true, value, model, shape };
-        } catch (err) {
-          return {
-            ok: false,
-            reason: err instanceof Error ? err.message : "provider error",
-            model,
-          };
         }
       }
 
-      return { ok: false, reason: lastReason, model };
+      return {
+        ok: false,
+        reason: lastReason,
+        model,
+      };
     },
   };
 }

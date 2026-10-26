@@ -11,7 +11,6 @@
  * remember which one worked for the life of the process so later calls skip the
  * failed attempt. Any other failure is reported, never silently retried.
  */
-const TIMEOUT_MS = 20_000;
 /** Convert our lowercase JSON-Schema types to the legacy uppercase enums. */
 function toLegacySchema(node) {
     if (!node || typeof node !== "object")
@@ -43,9 +42,16 @@ function toLegacySchema(node) {
 export function createGeminiAdapter(env) {
     const available = Boolean(env.GEMINI_API_KEY);
     const model = env.GEMINI_MODEL;
+    const timeoutMs = env.LLM_TIMEOUT_MS ?? 45_000;
     // Learned once per process; null means "unknown, try promoted first".
     let knownShape = null;
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+    const candidateModels = [
+        model,
+        "gemini-3.5-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-3.5-flash-lite",
+    ];
+    const modelsToTry = [...new Set(candidateModels)];
     const buildBody = (req, shape) => ({
         contents: [{ parts: [{ text: req.user }] }],
         systemInstruction: { parts: [{ text: req.system }] },
@@ -62,9 +68,10 @@ export function createGeminiAdapter(env) {
                 temperature: req.temperature ?? 0.2,
             },
     });
-    const call = async (req, shape, signal) => {
-        const deadline = AbortSignal.timeout(TIMEOUT_MS);
+    const call = async (req, shape, targetModel, signal) => {
+        const deadline = AbortSignal.timeout(timeoutMs);
         const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent`;
         try {
             const res = await fetch(endpoint, {
                 method: "POST",
@@ -80,7 +87,7 @@ export function createGeminiAdapter(env) {
         }
         catch (err) {
             if (deadline.aborted)
-                throw new Error(`timed out after ${TIMEOUT_MS}ms`);
+                throw new Error(`timed out after ${timeoutMs}ms`);
             if (signal?.aborted)
                 throw new Error("cancelled");
             // Never include the URL or headers in the message — the key lives there.
@@ -112,38 +119,54 @@ export function createGeminiAdapter(env) {
         async json(req) {
             if (!available)
                 return { ok: false, reason: "GEMINI_API_KEY not set", model };
-            const order = knownShape
-                ? [knownShape]
-                : ["promoted", "legacy"];
             let lastReason = "unknown provider error";
-            for (const shape of order) {
-                try {
-                    const res = await call(req, shape, req.signal);
-                    if (res.status === 400 && shape === "promoted" && !knownShape) {
-                        // Shape mismatch is the expected 400 here; fall through to legacy.
-                        lastReason = `400 on promoted shape: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`;
-                        continue;
+            for (const targetModel of modelsToTry) {
+                const order = knownShape
+                    ? [knownShape]
+                    : ["promoted", "legacy"];
+                for (const shape of order) {
+                    try {
+                        const res = await call(req, shape, targetModel, req.signal);
+                        if (res.status === 400 && shape === "promoted" && !knownShape) {
+                            // Shape mismatch is the expected 400 here; fall through to legacy.
+                            lastReason = `400 on promoted shape: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`;
+                            continue;
+                        }
+                        // On 503 (high demand) or 404 (unavailable), try next model
+                        if ((res.status === 503 || res.status === 404) && targetModel !== modelsToTry[modelsToTry.length - 1]) {
+                            lastReason = `HTTP ${res.status} on ${targetModel}: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`;
+                            break;
+                        }
+                        if (res.status < 200 || res.status >= 300) {
+                            return {
+                                ok: false,
+                                reason: `HTTP ${res.status}: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`,
+                                model: targetModel,
+                            };
+                        }
+                        const value = parse(res.body);
+                        knownShape = shape;
+                        return { ok: true, value, model: targetModel, shape };
                     }
-                    if (res.status < 200 || res.status >= 300) {
+                    catch (err) {
+                        const msg = err instanceof Error ? err.message : "provider error";
+                        lastReason = msg;
+                        if (targetModel !== modelsToTry[modelsToTry.length - 1]) {
+                            break; // Try next candidate model
+                        }
                         return {
                             ok: false,
-                            reason: `HTTP ${res.status}: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`,
-                            model,
+                            reason: msg,
+                            model: targetModel,
                         };
                     }
-                    const value = parse(res.body);
-                    knownShape = shape;
-                    return { ok: true, value, model, shape };
-                }
-                catch (err) {
-                    return {
-                        ok: false,
-                        reason: err instanceof Error ? err.message : "provider error",
-                        model,
-                    };
                 }
             }
-            return { ok: false, reason: lastReason, model };
+            return {
+                ok: false,
+                reason: lastReason,
+                model,
+            };
         },
     };
 }

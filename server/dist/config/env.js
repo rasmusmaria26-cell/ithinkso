@@ -21,6 +21,7 @@ const EnvSchema = z.object({
     TAVILY_API_KEY: z.string().min(1).optional(),
     /** Optional tuning knobs; defaults match the measured spike. */
     SEARCH_TIMEOUT_MS: z.coerce.number().int().positive().default(8000),
+    LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(50000),
     GITHUB_MAX_CALLS_PER_MIN: z.coerce.number().int().positive().default(20),
     ITUNES_MAX_CALLS_PER_MIN: z.coerce.number().int().positive().default(20),
     MAX_CONCURRENT_SEARCHES: z.coerce.number().int().positive().default(4),

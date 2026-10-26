@@ -75,11 +75,12 @@ export function computeScore(input) {
         // the user's defining innovation remains uncolonized despite secondary utility overlap.
         const relevantCompetitors = competitors.filter((c) => c.relevant);
         const topCompetitor = relevantCompetitors[0];
-        const topMatchesCore = features && features.length > 0 && topCompetitor
-            ? topCompetitor.features_matched?.some((f) => f.n === 1)
+        const hasMatchedList = topCompetitor?.features_matched && topCompetitor.features_matched.length > 0;
+        const topMatchesCore = hasMatchedList
+            ? topCompetitor.features_matched.some((f) => f.n === 1)
             : null;
         if (topMatchesCore === false) {
-            score += 12; // Core mechanic untouched
+            score += 10; // Core mechanic untouched
         }
         else if (topMatchesCore === true && topCompetitor && topCompetitor.overlap_percent >= 75) {
             score -= 6; // Core mechanic directly matched
@@ -112,16 +113,30 @@ export function computeScore(input) {
         else if (distinctSources >= 3) {
             score -= 5; // Omnipresent across GitHub, npm, App Store & Web
         }
-        // 6. Dynamic Range Calibration across Verdict Bands
-        if (maxOverlap >= ALREADY_EXISTS_AT) {
-            score = Math.min(35, score);
+        // 6. Collective Coverage & Dynamic Range Calibration across Verdict Bands
+        const unionMatchedNumbers = new Set(relevantCompetitors.flatMap((c) => (c.features_matched ?? []).map((f) => f.n)));
+        const totalFeaturesCount = features && features.length > 0 ? features.length : 1;
+        const collectiveOverlap = Math.round((unionMatchedNumbers.size / totalFeaturesCount) * 100);
+        const marketOverlap = Math.max(maxOverlap, Math.round(collectiveOverlap * 0.85));
+        if (marketOverlap >= ALREADY_EXISTS_AT) {
+            score = Math.min(34, score);
         }
-        else if (maxOverlap < PARTLY_EXISTS_AT) {
+        else if (marketOverlap >= PARTLY_EXISTS_AT) {
+            score = Math.min(69, Math.max(35, score));
+        }
+        else if (marketOverlap < PARTLY_EXISTS_AT && relevantCount <= 1) {
             score = Math.max(65, score);
         }
         novelty = Math.max(0, Math.min(100, Math.round(score)));
     }
     const failedSources = statuses.filter((s) => !s.ok).length;
+    const relevantCompetitors = competitors.filter((c) => c.relevant);
+    const unionMatchedNumbers = new Set(relevantCompetitors.flatMap((c) => (c.features_matched ?? []).map((f) => f.n)));
+    const totalFeaturesCount = features && features.length > 0 ? features.length : 1;
+    const collectiveOverlap = Math.round((unionMatchedNumbers.size / totalFeaturesCount) * 100);
+    const effectiveVerdictOverlap = hasForensicContext
+        ? Math.max(maxOverlap, Math.round(collectiveOverlap * 0.85))
+        : maxOverlap;
     let verdict;
     let reason = null;
     if (leadsConsidered < MIN_LEADS_FOR_VERDICT) {
@@ -132,10 +147,10 @@ export function computeScore(input) {
         verdict = "inconclusive";
         reason = `${failedSources} sources failed`;
     }
-    else if (maxOverlap >= ALREADY_EXISTS_AT) {
+    else if (effectiveVerdictOverlap >= ALREADY_EXISTS_AT) {
         verdict = "already_exists";
     }
-    else if (maxOverlap >= PARTLY_EXISTS_AT) {
+    else if (effectiveVerdictOverlap >= PARTLY_EXISTS_AT) {
         verdict = "partly_exists";
     }
     else {

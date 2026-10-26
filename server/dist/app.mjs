@@ -18,6 +18,7 @@ var EnvSchema = z.object({
   TAVILY_API_KEY: z.string().min(1).optional(),
   /** Optional tuning knobs; defaults match the measured spike. */
   SEARCH_TIMEOUT_MS: z.coerce.number().int().positive().default(8e3),
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(5e4),
   GITHUB_MAX_CALLS_PER_MIN: z.coerce.number().int().positive().default(20),
   ITUNES_MAX_CALLS_PER_MIN: z.coerce.number().int().positive().default(20),
   MAX_CONCURRENT_SEARCHES: z.coerce.number().int().positive().default(4),
@@ -212,7 +213,6 @@ function createRateLimiter(options) {
 }
 
 // src/services/llm/gemini.adapter.ts
-var TIMEOUT_MS = 2e4;
 function toLegacySchema(node) {
   if (!node || typeof node !== "object") return node;
   if (Array.isArray(node)) return node.map(toLegacySchema);
@@ -241,8 +241,15 @@ function toLegacySchema(node) {
 function createGeminiAdapter(env2) {
   const available = Boolean(env2.GEMINI_API_KEY);
   const model = env2.GEMINI_MODEL;
+  const timeoutMs = env2.LLM_TIMEOUT_MS ?? 45e3;
   let knownShape = null;
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const candidateModels = [
+    model,
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite"
+  ];
+  const modelsToTry = [...new Set(candidateModels)];
   const buildBody = (req, shape) => ({
     contents: [{ parts: [{ text: req.user }] }],
     systemInstruction: { parts: [{ text: req.system }] },
@@ -257,9 +264,10 @@ function createGeminiAdapter(env2) {
       temperature: req.temperature ?? 0.2
     }
   });
-  const call = async (req, shape, signal) => {
-    const deadline = AbortSignal.timeout(TIMEOUT_MS);
+  const call = async (req, shape, targetModel, signal) => {
+    const deadline = AbortSignal.timeout(timeoutMs);
     const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent`;
     try {
       const res = await fetch(endpoint, {
         method: "POST",
@@ -273,7 +281,7 @@ function createGeminiAdapter(env2) {
       const body = await res.text();
       return { status: res.status, body };
     } catch (err) {
-      if (deadline.aborted) throw new Error(`timed out after ${TIMEOUT_MS}ms`);
+      if (deadline.aborted) throw new Error(`timed out after ${timeoutMs}ms`);
       if (signal?.aborted) throw new Error("cancelled");
       throw new Error(err instanceof Error ? err.name : "network error");
     }
@@ -300,34 +308,49 @@ function createGeminiAdapter(env2) {
     isAvailable: () => available,
     async json(req) {
       if (!available) return { ok: false, reason: "GEMINI_API_KEY not set", model };
-      const order = knownShape ? [knownShape] : ["promoted", "legacy"];
       let lastReason = "unknown provider error";
-      for (const shape of order) {
-        try {
-          const res = await call(req, shape, req.signal);
-          if (res.status === 400 && shape === "promoted" && !knownShape) {
-            lastReason = `400 on promoted shape: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`;
-            continue;
-          }
-          if (res.status < 200 || res.status >= 300) {
+      for (const targetModel of modelsToTry) {
+        const order = knownShape ? [knownShape] : ["promoted", "legacy"];
+        for (const shape of order) {
+          try {
+            const res = await call(req, shape, targetModel, req.signal);
+            if (res.status === 400 && shape === "promoted" && !knownShape) {
+              lastReason = `400 on promoted shape: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`;
+              continue;
+            }
+            if ((res.status === 503 || res.status === 404) && targetModel !== modelsToTry[modelsToTry.length - 1]) {
+              lastReason = `HTTP ${res.status} on ${targetModel}: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`;
+              break;
+            }
+            if (res.status < 200 || res.status >= 300) {
+              return {
+                ok: false,
+                reason: `HTTP ${res.status}: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`,
+                model: targetModel
+              };
+            }
+            const value = parse(res.body);
+            knownShape = shape;
+            return { ok: true, value, model: targetModel, shape };
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : "provider error";
+            lastReason = msg;
+            if (targetModel !== modelsToTry[modelsToTry.length - 1]) {
+              break;
+            }
             return {
               ok: false,
-              reason: `HTTP ${res.status}: ${res.body.slice(0, 160).replace(/\s+/g, " ")}`,
-              model
+              reason: msg,
+              model: targetModel
             };
           }
-          const value = parse(res.body);
-          knownShape = shape;
-          return { ok: true, value, model, shape };
-        } catch (err) {
-          return {
-            ok: false,
-            reason: err instanceof Error ? err.message : "provider error",
-            model
-          };
         }
       }
-      return { ok: false, reason: lastReason, model };
+      return {
+        ok: false,
+        reason: lastReason,
+        model
+      };
     }
   };
 }
