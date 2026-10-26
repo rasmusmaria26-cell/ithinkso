@@ -257,6 +257,9 @@ export async function runPipeline(input: RunInput): Promise<RunOutcome> {
       competitors: scored.competitors,
       leadsConsidered: leads.length,
       statuses,
+      whatsNew: judge.whats_new,
+      gaps: judge.gaps,
+      features,
     });
 
     const topCompetitor = scored.competitors.find((c) => c.relevant);

@@ -212,3 +212,140 @@ describe("oneLineReason", () => {
     expect(text).toContain("20 leads");
   });
 });
+
+describe("computeScore — multi-factor forensic novelty engine", () => {
+  const features = [
+    { n: 1, text: "Core unique innovation mechanic" },
+    { n: 2, text: "Secondary utility service" },
+    { n: 3, text: "Standard client interface" },
+  ];
+
+  it("rewards verified white space from whats_new and gaps", () => {
+    const withoutWhitespace = computeScore({
+      competitors: [competitor({ overlap_percent: 50, relevant: true })],
+      leadsConsidered: 10,
+      statuses: okAll,
+      features,
+      whatsNew: [],
+      gaps: [],
+    });
+
+    const withWhitespace = computeScore({
+      competitors: [competitor({ overlap_percent: 50, relevant: true })],
+      leadsConsidered: 10,
+      statuses: okAll,
+      features,
+      whatsNew: [
+        "On-device zero-knowledge vector search",
+        "Deterministic local clustering pipeline",
+      ],
+      gaps: ["Existing tools require cloud uploads"],
+    });
+
+    // Substantive white space produces a higher novelty score
+    expect(withWhitespace.novelty_score).toBeGreaterThan(withoutWhitespace.novelty_score);
+  });
+
+  it("differentiates when top competitor missed core feature #1", () => {
+    const matchedCore = computeScore({
+      competitors: [
+        competitor({
+          overlap_percent: 50,
+          relevant: true,
+          features_matched: [{ n: 1, text: "Core unique innovation mechanic" }],
+        }),
+      ],
+      leadsConsidered: 10,
+      statuses: okAll,
+      features,
+      whatsNew: ["Some new angle"],
+    });
+
+    const missedCore = computeScore({
+      competitors: [
+        competitor({
+          overlap_percent: 50,
+          relevant: true,
+          features_matched: [{ n: 2, text: "Secondary utility service" }],
+        }),
+      ],
+      leadsConsidered: 10,
+      statuses: okAll,
+      features,
+      whatsNew: ["Some new angle"],
+    });
+
+    // The competitor that only matched secondary utility leaves the core innovation intact
+    expect(missedCore.novelty_score).toBeGreaterThan(matchedCore.novelty_score);
+  });
+
+  it("penalizes multi-channel market saturation with multiple competitors", () => {
+    const singleLead = computeScore({
+      competitors: [
+        competitor({ overlap_percent: 60, relevant: true, source: "github" }),
+      ],
+      leadsConsidered: 10,
+      statuses: okAll,
+      features,
+      whatsNew: ["New workflow"],
+    });
+
+    const crowdedMarket = computeScore({
+      competitors: [
+        competitor({ overlap_percent: 60, relevant: true, source: "github" }),
+        competitor({ overlap_percent: 55, relevant: true, source: "npm" }),
+        competitor({ overlap_percent: 50, relevant: true, source: "itunes" }),
+        competitor({ overlap_percent: 45, relevant: true, source: "web" }),
+      ],
+      leadsConsidered: 10,
+      statuses: okAll,
+      features,
+      whatsNew: ["New workflow"],
+    });
+
+    // Crowded 4-channel market receives a saturation penalty
+    expect(singleLead.novelty_score).toBeGreaterThan(crowdedMarket.novelty_score);
+  });
+
+  it("expands dynamic range instead of clamping everything to 30-40", () => {
+    // 1. Direct clone with core match: drops deep into low novelty
+    const clone = computeScore({
+      competitors: [
+        competitor({
+          overlap_percent: 90,
+          relevant: true,
+          features_matched: [{ n: 1, text: "Core" }],
+        }),
+        competitor({ overlap_percent: 80, relevant: true }),
+      ],
+      leadsConsidered: 10,
+      statuses: okAll,
+      features,
+      whatsNew: [],
+    });
+
+    // 2. Fresh idea with uncolonized whitespace: climbs high into novelty
+    const fresh = computeScore({
+      competitors: [
+        competitor({
+          overlap_percent: 30,
+          relevant: true,
+          features_matched: [{ n: 3, text: "UI" }],
+        }),
+      ],
+      leadsConsidered: 10,
+      statuses: okAll,
+      features,
+      whatsNew: [
+        "Novel neural synthesis pipeline",
+        "Zero-latency peer-to-peer transport",
+      ],
+      gaps: ["No current competitor operates offline"],
+    });
+
+    expect(clone.novelty_score).toBeLessThanOrEqual(25);
+    expect(fresh.novelty_score).toBeGreaterThanOrEqual(75);
+    // Real separation: dynamic range >= 50 points
+    expect(fresh.novelty_score - clone.novelty_score).toBeGreaterThanOrEqual(50);
+  });
+});

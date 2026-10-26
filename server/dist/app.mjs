@@ -962,16 +962,71 @@ var ALREADY_EXISTS_AT = 70;
 var PARTLY_EXISTS_AT = 35;
 var MIN_LEADS_FOR_VERDICT = 3;
 var MAX_FAILED_SOURCES = 2;
+function countSubstantiveItems(items) {
+  if (!items || !items.length) return 0;
+  return items.filter((item) => {
+    const text = item.trim().toLowerCase();
+    if (text.length < 5) return false;
+    if (text.includes("no novel") || text.includes("none identified") || text.includes("nothing novel") || text.includes("no distinct") || text.includes("n/a")) {
+      return false;
+    }
+    return true;
+  }).length;
+}
 function computeScore(input) {
-  const { competitors, leadsConsidered, statuses } = input;
+  const { competitors, leadsConsidered, statuses, whatsNew, gaps, features } = input;
   const relevant = competitors.filter((c) => c.relevant).map((c) => c.overlap_percent).sort((a, b) => b - a);
   const maxOverlap = relevant[0] ?? 0;
   const top3 = relevant.slice(0, 3);
   const meanTop3 = top3.length ? Math.round(top3.reduce((sum, n) => sum + n, 0) / top3.length) : 0;
-  const novelty = Math.max(
-    0,
-    Math.min(100, 100 - Math.round(0.7 * maxOverlap + 0.3 * meanTop3))
-  );
+  let novelty;
+  const hasForensicContext = whatsNew !== void 0 || gaps !== void 0 || features !== void 0;
+  if (relevant.length === 0) {
+    novelty = 100;
+  } else if (!hasForensicContext) {
+    novelty = Math.max(
+      0,
+      Math.min(100, 100 - Math.round(0.7 * maxOverlap + 0.3 * meanTop3))
+    );
+  } else {
+    const baseOverlap = relevant.length === 1 ? maxOverlap : 0.65 * maxOverlap + 0.35 * meanTop3;
+    let score = 100 - baseOverlap;
+    const relevantCompetitors = competitors.filter((c) => c.relevant);
+    const topCompetitor = relevantCompetitors[0];
+    const topMatchesCore = features && features.length > 0 && topCompetitor ? topCompetitor.features_matched?.some((f) => f.n === 1) : null;
+    if (topMatchesCore === false) {
+      score += 12;
+    } else if (topMatchesCore === true && topCompetitor && topCompetitor.overlap_percent >= 75) {
+      score -= 6;
+    }
+    const substantiveWhatsNew = countSubstantiveItems(whatsNew);
+    const substantiveGaps = countSubstantiveItems(gaps);
+    if (substantiveWhatsNew > 0 || substantiveGaps > 0) {
+      score += Math.min(16, substantiveWhatsNew * 4) + Math.min(6, substantiveGaps * 2);
+    } else if (whatsNew && whatsNew.length > 0) {
+      score -= 6;
+    }
+    const relevantCount = relevant.length;
+    if (relevantCount === 1) {
+      score += 6;
+    } else if (relevantCount === 2) {
+      score += 2;
+    } else if (relevantCount >= 4) {
+      score -= Math.min(10, (relevantCount - 3) * 3);
+    }
+    const distinctSources = new Set(relevantCompetitors.map((c) => c.source)).size;
+    if (relevantCount > 0 && distinctSources === 1) {
+      score += 4;
+    } else if (distinctSources >= 3) {
+      score -= 5;
+    }
+    if (maxOverlap >= ALREADY_EXISTS_AT) {
+      score = Math.min(35, score);
+    } else if (maxOverlap < PARTLY_EXISTS_AT) {
+      score = Math.max(65, score);
+    }
+    novelty = Math.max(0, Math.min(100, Math.round(score)));
+  }
   const failedSources = statuses.filter((s) => !s.ok).length;
   let verdict;
   let reason = null;
@@ -1153,7 +1208,10 @@ async function runPipeline(input) {
     const score = computeScore({
       competitors: scored.competitors,
       leadsConsidered: leads.length,
-      statuses
+      statuses,
+      whatsNew: judge.whats_new,
+      gaps: judge.gaps,
+      features
     });
     const topCompetitor = scored.competitors.find((c) => c.relevant);
     const result = {
