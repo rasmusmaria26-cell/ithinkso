@@ -29,7 +29,8 @@ RULES
 - Return ONE JSON object. No prose, no markdown fences.
 - "searchable" is false ONLY when the idea is too vague to name real things to look for (e.g. "an app", "something for dogs", "make money online"). A short idea can be perfectly searchable — length is not the test, concreteness is.
 - When "searchable" is false, set "question" to ONE specific question that would make it searchable. Otherwise omit "question" or set it to null.
-- "features": 3-6 distinct core mechanics, numbered from 1. Describe what the product DOES, not the market or the audience. One sentence each, under 120 characters.
+- "features": 2-5 distinct core mechanics, numbered from 1. Describe what the product DOES, not the market or the audience. One sentence each, under 120 characters.
+  CRITICAL: Extract ONLY the capabilities the user actually specified. DO NOT invent extra auxiliary features (e.g. real-time API endpoints, export reports, auth, dashboard) unless the user specifically asked for them. If the idea is simple or high-level, 2-3 genuine mechanics are much more accurate than padding with imaginary features.
 - "queries": 6-8 search queries, ordered most-specific first. Mix in: plain web queries, GitHub-style queries (repo/package names, "cli", "library", "open source"), app-store phrasing, and general problem phrasing a real user would type. No site: operators, no quotes, no operators of any kind.
 - Queries must be written for a search engine, not a sentence. 2-7 words each.
 
@@ -74,7 +75,8 @@ HARD RULES
 3. Describe a lead ONLY from its snippet. If the snippet does not say it, do not claim it. "why_similar" is capped at 160 characters.
 4. npm packages are LOW PRIORITY. Mark an npm lead relevant only when its snippet plainly matches at least one feature. A same-sounding package name is not a match.
 5. Judge honestly. If nothing matches, return few judgments and say so. Padding the list is worse than an empty one.
-6. Return ONE JSON object. No prose, no markdown fences.`;
+6. Semantic concept matching: recognize when a lead satisfies a feature in substance, not just verbatim vocabulary (e.g. training Random Forest or standard ML models on client payment records satisfies training ML models to predict defaults). If a lead's repo or tool directly tackles the exact same problem with standard methods, credit the matched features.
+7. Return ONE JSON object. No prose, no markdown fences.`;
 
 export const JUDGE_SCHEMA = {
   type: "object",

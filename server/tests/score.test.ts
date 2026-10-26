@@ -222,7 +222,13 @@ describe("computeScore — multi-factor forensic novelty engine", () => {
 
   it("rewards verified white space from whats_new and gaps", () => {
     const withoutWhitespace = computeScore({
-      competitors: [competitor({ overlap_percent: 50, relevant: true })],
+      competitors: [
+        competitor({
+          overlap_percent: 50,
+          relevant: true,
+          features_matched: [{ n: 1, text: "Core" }],
+        }),
+      ],
       leadsConsidered: 10,
       statuses: okAll,
       features,
@@ -231,7 +237,13 @@ describe("computeScore — multi-factor forensic novelty engine", () => {
     });
 
     const withWhitespace = computeScore({
-      competitors: [competitor({ overlap_percent: 50, relevant: true })],
+      competitors: [
+        competitor({
+          overlap_percent: 50,
+          relevant: true,
+          features_matched: [{ n: 1, text: "Core" }],
+        }),
+      ],
       leadsConsidered: 10,
       statuses: okAll,
       features,

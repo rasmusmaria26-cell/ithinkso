@@ -427,7 +427,8 @@ RULES
 - Return ONE JSON object. No prose, no markdown fences.
 - "searchable" is false ONLY when the idea is too vague to name real things to look for (e.g. "an app", "something for dogs", "make money online"). A short idea can be perfectly searchable \u2014 length is not the test, concreteness is.
 - When "searchable" is false, set "question" to ONE specific question that would make it searchable. Otherwise omit "question" or set it to null.
-- "features": 3-6 distinct core mechanics, numbered from 1. Describe what the product DOES, not the market or the audience. One sentence each, under 120 characters.
+- "features": 2-5 distinct core mechanics, numbered from 1. Describe what the product DOES, not the market or the audience. One sentence each, under 120 characters.
+  CRITICAL: Extract ONLY the capabilities the user actually specified. DO NOT invent extra auxiliary features (e.g. real-time API endpoints, export reports, auth, dashboard) unless the user specifically asked for them. If the idea is simple or high-level, 2-3 genuine mechanics are much more accurate than padding with imaginary features.
 - "queries": 6-8 search queries, ordered most-specific first. Mix in: plain web queries, GitHub-style queries (repo/package names, "cli", "library", "open source"), app-store phrasing, and general problem phrasing a real user would type. No site: operators, no quotes, no operators of any kind.
 - Queries must be written for a search engine, not a sentence. 2-7 words each.
 
@@ -467,7 +468,8 @@ HARD RULES
 3. Describe a lead ONLY from its snippet. If the snippet does not say it, do not claim it. "why_similar" is capped at 160 characters.
 4. npm packages are LOW PRIORITY. Mark an npm lead relevant only when its snippet plainly matches at least one feature. A same-sounding package name is not a match.
 5. Judge honestly. If nothing matches, return few judgments and say so. Padding the list is worse than an empty one.
-6. Return ONE JSON object. No prose, no markdown fences.`;
+6. Semantic concept matching: recognize when a lead satisfies a feature in substance, not just verbatim vocabulary (e.g. training Random Forest or standard ML models on client payment records satisfies training ML models to predict defaults). If a lead's repo or tool directly tackles the exact same problem with standard methods, credit the matched features.
+7. Return ONE JSON object. No prose, no markdown fences.`;
 var JUDGE_SCHEMA = {
   type: "object",
   properties: {
@@ -991,11 +993,12 @@ function computeScore(input) {
   } else {
     const baseOverlap = relevant.length === 1 ? maxOverlap : 0.65 * maxOverlap + 0.35 * meanTop3;
     let score = 100 - baseOverlap;
-    const relevantCompetitors = competitors.filter((c) => c.relevant);
-    const topCompetitor = relevantCompetitors[0];
-    const topMatchesCore = features && features.length > 0 && topCompetitor ? topCompetitor.features_matched?.some((f) => f.n === 1) : null;
+    const relevantCompetitors2 = competitors.filter((c) => c.relevant);
+    const topCompetitor = relevantCompetitors2[0];
+    const hasMatchedList = topCompetitor?.features_matched && topCompetitor.features_matched.length > 0;
+    const topMatchesCore = hasMatchedList ? topCompetitor.features_matched.some((f) => f.n === 1) : null;
     if (topMatchesCore === false) {
-      score += 12;
+      score += 10;
     } else if (topMatchesCore === true && topCompetitor && topCompetitor.overlap_percent >= 75) {
       score -= 6;
     }
@@ -1014,20 +1017,35 @@ function computeScore(input) {
     } else if (relevantCount >= 4) {
       score -= Math.min(10, (relevantCount - 3) * 3);
     }
-    const distinctSources = new Set(relevantCompetitors.map((c) => c.source)).size;
+    const distinctSources = new Set(relevantCompetitors2.map((c) => c.source)).size;
     if (relevantCount > 0 && distinctSources === 1) {
       score += 4;
     } else if (distinctSources >= 3) {
       score -= 5;
     }
-    if (maxOverlap >= ALREADY_EXISTS_AT) {
-      score = Math.min(35, score);
-    } else if (maxOverlap < PARTLY_EXISTS_AT) {
+    const unionMatchedNumbers2 = new Set(
+      relevantCompetitors2.flatMap((c) => (c.features_matched ?? []).map((f) => f.n))
+    );
+    const totalFeaturesCount2 = features && features.length > 0 ? features.length : 1;
+    const collectiveOverlap2 = Math.round(unionMatchedNumbers2.size / totalFeaturesCount2 * 100);
+    const marketOverlap = Math.max(maxOverlap, Math.round(collectiveOverlap2 * 0.85));
+    if (marketOverlap >= ALREADY_EXISTS_AT) {
+      score = Math.min(34, score);
+    } else if (marketOverlap >= PARTLY_EXISTS_AT) {
+      score = Math.min(69, Math.max(35, score));
+    } else if (marketOverlap < PARTLY_EXISTS_AT && relevantCount <= 1) {
       score = Math.max(65, score);
     }
     novelty = Math.max(0, Math.min(100, Math.round(score)));
   }
   const failedSources = statuses.filter((s) => !s.ok).length;
+  const relevantCompetitors = competitors.filter((c) => c.relevant);
+  const unionMatchedNumbers = new Set(
+    relevantCompetitors.flatMap((c) => (c.features_matched ?? []).map((f) => f.n))
+  );
+  const totalFeaturesCount = features && features.length > 0 ? features.length : 1;
+  const collectiveOverlap = Math.round(unionMatchedNumbers.size / totalFeaturesCount * 100);
+  const effectiveVerdictOverlap = hasForensicContext ? Math.max(maxOverlap, Math.round(collectiveOverlap * 0.85)) : maxOverlap;
   let verdict;
   let reason = null;
   if (leadsConsidered < MIN_LEADS_FOR_VERDICT) {
@@ -1036,9 +1054,9 @@ function computeScore(input) {
   } else if (failedSources >= MAX_FAILED_SOURCES) {
     verdict = "inconclusive";
     reason = `${failedSources} sources failed`;
-  } else if (maxOverlap >= ALREADY_EXISTS_AT) {
+  } else if (effectiveVerdictOverlap >= ALREADY_EXISTS_AT) {
     verdict = "already_exists";
-  } else if (maxOverlap >= PARTLY_EXISTS_AT) {
+  } else if (effectiveVerdictOverlap >= PARTLY_EXISTS_AT) {
     verdict = "partly_exists";
   } else {
     verdict = "pretty_fresh";
