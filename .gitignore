@@ -23,6 +23,7 @@ spike/*.log
 # logs
 logs/
 *.log
+*-docs.txt
 npm-debug.log*
 
 # editors / OS
