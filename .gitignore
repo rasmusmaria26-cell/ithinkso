@@ -1,8 +1,12 @@
 # deps
 node_modules/
 .pnpm-store/
-package-lock.json
-*/package-lock.json
+
+# env
+.env
+.env.*
+*.local
+server/.env
 
 # builds
 client/dist/
@@ -10,31 +14,8 @@ client/dist/
 build/
 *.tsbuildinfo
 
-# env
-.env
-.env.local
-.env.*.local
-*.local
-
-# spike output (may contain snippets / keys in error text)
-spike/out/
-spike/*.log
-
-# logs
+# logs & os
 logs/
 *.log
-npm-debug.log*
-
-# editors / OS
-.vscode/*
-!.vscode/extensions.json
-.idea/
 .DS_Store
 Thumbs.db
-
-# coverage
-coverage/
-
-# misc
-*.pem
-.cache/
