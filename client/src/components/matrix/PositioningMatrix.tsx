@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import type { Competitor, Feature } from "../../types/case.ts";
-import { SourceBadge } from "../common/SourceBadge.tsx";
+import type { Competitor } from "../../types/case.ts";
 
 interface PositioningMatrixProps {
   competitors: Competitor[];
@@ -172,20 +171,25 @@ export const PositioningMatrix: React.FC<PositioningMatrixProps> = ({
             </div>
 
             {/* Target Reticle Tag */}
-            <div className="absolute left-12 top-0 -translate-y-2 bg-[#FFE45C] border-2 border-ink px-2.5 py-1.5 shadow-[3px_3px_0px_#1B1A17] whitespace-nowrap pointer-events-none z-40">
+            <div className="absolute left-12 top-0 -translate-y-2 bg-[#FFE45C] border-2 border-ink px-2.5 py-1.5 shadow-[3px_3px_0px_#1B1A17] whitespace-nowrap pointer-events-none z-40 max-w-[200px]">
               <div className="font-stamp text-[10px] uppercase tracking-wider text-ink font-bold">
                 PROPOSED POSITION
               </div>
-              <div className="font-mono text-xs font-bold text-ink">
+              <div className="font-mono text-xs font-bold text-ink truncate" title={conceptText}>
+                {conceptText || "Your Concept"}
+              </div>
+              <div className="font-mono text-[10px] text-ink/75">
                 Novelty: {noveltyScore}/100
               </div>
             </div>
           </div>
 
           {/* Handwritten Field Note in White Space */}
-          <div className="absolute bottom-4 right-4 max-w-[220px] pointer-events-none hidden sm:block z-10 rotate-1">
+          <div className="absolute bottom-4 right-4 max-w-[240px] pointer-events-none hidden sm:block z-10 rotate-1">
             <div className="font-hand text-base leading-tight text-ink/80 bg-[#FFF9D2] p-2.5 border border-ink/30 shadow-[2px_2px_0px_rgba(27,26,23,0.15)]">
-              &ldquo;Unclaimed territory in Q4. Focus here for maximum differentiation.&rdquo;
+              {suggestedTwist
+                ? `\u201c${suggestedTwist}\u201d`
+                : "\u201cUnclaimed territory in Q4. Focus here for maximum differentiation.\u201d"}
             </div>
           </div>
         </div>

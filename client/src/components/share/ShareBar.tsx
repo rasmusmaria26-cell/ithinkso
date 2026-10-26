@@ -5,6 +5,7 @@ interface ShareBarProps {
   caseId: string;
   onNewSearch: () => void;
   onToast: (msg: string) => void;
+  onOpenDossier?: () => void;
   isSoundEnabled?: boolean;
 }
 
@@ -12,6 +13,7 @@ export const ShareBar: React.FC<ShareBarProps> = ({
   caseId,
   onNewSearch,
   onToast,
+  onOpenDossier,
   isSoundEnabled = false,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -42,17 +44,27 @@ export const ShareBar: React.FC<ShareBarProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          {onOpenDossier && (
+            <button
+              onClick={onOpenDossier}
+              className="px-3.5 py-2 border-2 border-ink bg-[#FFF9D2] text-ink font-mono text-xs uppercase tracking-wider shadow-[2px_2px_0px_#1B1A17] hover:bg-[#FFE45C] cursor-pointer transition-all active:translate-x-0.5 active:translate-y-0.5 flex items-center gap-1.5"
+              title="Open printable classified dossier PDF"
+            >
+              <span>📄 Dossier (PDF)</span>
+            </button>
+          )}
+
           <button
             onClick={onNewSearch}
-            className="px-4 py-2 border border-ink bg-paper text-ink font-mono text-xs uppercase tracking-wider hover:bg-paper-muted cursor-pointer transition-colors"
+            className="px-3 py-2 border border-ink bg-paper text-ink font-mono text-xs uppercase tracking-wider hover:bg-paper-muted cursor-pointer transition-colors"
           >
             New Docket
           </button>
 
           <button
             onClick={handleCopy}
-            className="px-5 py-2 border-2 border-ink bg-ink text-paper font-mono text-xs uppercase tracking-wider shadow-[2px_2px_0px_#1B1A17] hover:bg-paper hover:text-ink cursor-pointer transition-all active:translate-x-0.5 active:translate-y-0.5"
+            className="px-4 py-2 border-2 border-ink bg-ink text-paper font-mono text-xs uppercase tracking-wider shadow-[2px_2px_0px_#1B1A17] hover:bg-paper hover:text-ink cursor-pointer transition-all active:translate-x-0.5 active:translate-y-0.5"
           >
             {copied ? "Link Copied ✓" : "File This Case 🔔"}
           </button>

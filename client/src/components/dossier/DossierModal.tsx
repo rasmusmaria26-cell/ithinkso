@@ -1,6 +1,5 @@
 import React, { useEffect } from "react";
-import type { CaseResult, Competitor } from "../../types/case.ts";
-import { formatCaseNumber, formatRelativeTime } from "../../lib/format.ts";
+import type { CaseResult } from "../../types/case.ts";
 
 interface DossierModalProps {
   isOpen: boolean;
@@ -96,7 +95,7 @@ export const DossierModal: React.FC<DossierModalProps> = ({
             </div>
 
             <div className="font-mono text-xs border border-ink p-3 bg-desk-blotter/60 sm:text-right min-w-[200px]">
-              <div><span className="text-ink/60">DOCKET NO:</span> <span className="font-bold text-ink font-stamp">{formatCaseNumber(caseId)}</span></div>
+              <div><span className="text-ink/60">DOCKET NO:</span> <span className="font-bold text-ink font-stamp">{caseId.toUpperCase()}</span></div>
               <div><span className="text-ink/60">DATE FILED:</span> <span className="font-bold text-ink">{result.created_at ? new Date(result.created_at).toLocaleDateString() : "CURRENT"}</span></div>
               <div><span className="text-ink/60">EXPIRES:</span> <span className="font-bold text-ink">90 DAYS FROM FILING</span></div>
             </div>

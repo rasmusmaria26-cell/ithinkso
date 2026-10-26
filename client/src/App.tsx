@@ -9,6 +9,8 @@ import { RubberStamp } from "./components/verdict/RubberStamp.tsx";
 import { NoveltyBar } from "./components/verdict/NoveltyBar.tsx";
 import { EvidenceDesk } from "./components/evidence/EvidenceDesk.tsx";
 import { ExhibitModal } from "./components/evidence/ExhibitModal.tsx";
+import { PositioningMatrix } from "./components/matrix/PositioningMatrix.tsx";
+import { DossierModal } from "./components/dossier/DossierModal.tsx";
 import { StickyNote } from "./components/notes/StickyNote.tsx";
 import { ShareBar } from "./components/share/ShareBar.tsx";
 import { ColdCases } from "./components/drawer/ColdCases.tsx";
@@ -40,6 +42,8 @@ export default function App() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [currentIdea, setCurrentIdea] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<"desk" | "matrix">("desk");
+  const [isDossierOpen, setIsDossierOpen] = useState<boolean>(false);
 
   // Modal inspection of an evidence dossier
   const [inspectingCompetitor, setInspectingCompetitor] =
@@ -142,6 +146,8 @@ export default function App() {
     setCurrentIdea("");
     setSharedCase(null);
     setInspectingCompetitor(null);
+    setActiveTab("desk");
+    setIsDossierOpen(false);
     if (window.location.pathname.startsWith("/r/")) {
       window.history.pushState({}, "", "/");
     }
@@ -297,12 +303,52 @@ export default function App() {
                 />
               </div>
 
-              {/* Evidence Desk Grid */}
-              <EvidenceDesk
-                competitors={activeResult.competitors}
-                onInspectCompetitor={(comp) => setInspectingCompetitor(comp)}
-                isSoundEnabled={isSoundEnabled}
-              />
+              {/* Evidence View Mode Switcher (Desk Blotter vs Angle of Attack 2x2) */}
+              <div className="w-full max-w-4xl mx-auto px-4 mt-6 mb-2 flex flex-wrap items-center justify-between border-b-2 border-dashed border-ink/30 pb-3 gap-3">
+                <div className="font-stamp text-xs uppercase tracking-widest text-ink/70 flex items-center gap-2">
+                  <span>EXHIBIT VIEWING PERSPECTIVE</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveTab("desk")}
+                    className={`px-3 py-1.5 font-mono text-xs uppercase tracking-wider border-2 border-ink cursor-pointer transition-all ${
+                      activeTab === "desk"
+                        ? "bg-ink text-paper font-bold shadow-[2px_2px_0px_#1B1A17]"
+                        : "bg-paper text-ink hover:bg-paper-muted"
+                    }`}
+                  >
+                    🗄️ Desk Blotter
+                  </button>
+                  <button
+                    onClick={() => setActiveTab("matrix")}
+                    className={`px-3 py-1.5 font-mono text-xs uppercase tracking-wider border-2 border-ink cursor-pointer transition-all ${
+                      activeTab === "matrix"
+                        ? "bg-stamp-red text-paper font-bold shadow-[2px_2px_0px_#1B1A17]"
+                        : "bg-paper text-ink hover:bg-paper-muted"
+                    }`}
+                  >
+                    🎯 Angle of Attack (2x2)
+                  </button>
+                </div>
+              </div>
+
+              {/* Evidence Presentation: Desk Blotter vs 2x2 Positioning Matrix */}
+              {activeTab === "desk" ? (
+                <EvidenceDesk
+                  competitors={activeResult.competitors}
+                  onInspectCompetitor={(comp) => setInspectingCompetitor(comp)}
+                  isSoundEnabled={isSoundEnabled}
+                />
+              ) : (
+                <PositioningMatrix
+                  competitors={activeResult.competitors}
+                  conceptText={currentIdea || activeResult.one_line_reason}
+                  suggestedTwist={activeResult.suggested_twist}
+                  noveltyScore={activeResult.novelty_score}
+                  onInspectCompetitor={(comp) => setInspectingCompetitor(comp)}
+                  isSoundEnabled={isSoundEnabled}
+                />
+              )}
 
               {/* Archival & Sharing Bar */}
               {activeCaseId && (
@@ -310,6 +356,7 @@ export default function App() {
                   caseId={activeCaseId}
                   onNewSearch={handleReset}
                   onToast={showToast}
+                  onOpenDossier={() => setIsDossierOpen(true)}
                   isSoundEnabled={isSoundEnabled}
                 />
               )}
@@ -324,6 +371,17 @@ export default function App() {
           features={activeResult.features}
           onClose={() => setInspectingCompetitor(null)}
           isSoundEnabled={isSoundEnabled}
+        />
+      )}
+
+      {/* Classified Prior Art Dossier Modal (Printable / PDF) */}
+      {activeResult && (
+        <DossierModal
+          isOpen={isDossierOpen}
+          onClose={() => setIsDossierOpen(false)}
+          caseId={activeCaseId || "CASE-000"}
+          conceptText={currentIdea || activeResult.one_line_reason}
+          result={activeResult}
         />
       )}
 
