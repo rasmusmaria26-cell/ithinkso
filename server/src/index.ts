@@ -50,9 +50,15 @@ export function createApp(options: AppOptions) {
 
   app.use(
     cors({
-      origin: env.CLIENT_ORIGIN,
+      origin: (origin, callback) => {
+        if (!origin || origin === env.CLIENT_ORIGIN || origin.endsWith(".vercel.app") || origin.startsWith("http://localhost:")) {
+          callback(null, true);
+        } else {
+          callback(null, true);
+        }
+      },
       methods: ["GET", "POST", "OPTIONS"],
-      allowedHeaders: ["Content-Type"],
+      allowedHeaders: ["Content-Type", "Accept"],
       maxAge: 600,
     }),
   );
