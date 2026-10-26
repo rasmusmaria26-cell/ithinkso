@@ -95,18 +95,23 @@ The LLM never queries the internet or invents competitors. The server retrieves 
 ### 2. Server-Grounded Novelty Math
 Novelty is calculated through pure deterministic arithmetic on the server:
 
-$$\text{novelty\_score} = 100 - \operatorname{round}(0.7 \times \text{max\_overlap} + 0.3 \times \text{mean\_top3\_overlap})$$
+```text
+novelty_score = 100 - round(0.7 × max_overlap + 0.3 × mean_top3_overlap)
 
-$$\text{where } \text{overlap\_percent} = \left(\frac{\text{matched\_features}}{\text{total\_features}}\right) \times 100$$
+where:
+overlap_percent = (matched_features / total_features) × 100
+```
+
+> **Single Competitor Rule:** When only one relevant lead is detected, novelty simplifies directly to `100 - max_overlap`.
 
 ### 3. Clear, Unflinching Verdicts
 
 | Verdict | Overlap Condition | Interpretation |
 | :--- | :--- | :--- |
-| **`ALREADY EXISTS`** | $\ge 70\%$ feature overlap | Direct, functional competitors dominate this exact concept. |
-| **`PARTLY EXISTS`** | $35\% - 69\%$ overlap | Core primitives exist; significant differentiation or niche focus needed. |
-| **`PRETTY FRESH`** | $< 35\%$ overlap | High novelty; minimal direct market collision detected. |
-| **`INCONCLUSIVE`** | $< 3$ leads or $\ge 2$ timeouts | Insufficient evidence collected to make a definitive ruling. |
+| **`ALREADY EXISTS`** | ≥ 70% feature overlap | Direct, functional competitors dominate this exact concept. |
+| **`PARTLY EXISTS`** | 35% – 69% overlap | Core primitives exist; significant differentiation or niche focus needed. |
+| **`PRETTY FRESH`** | < 35% overlap | High novelty; minimal direct market collision detected. |
+| **`INCONCLUSIVE`** | < 3 leads or ≥ 2 timeouts | Insufficient evidence collected to make a definitive ruling. |
 
 ### 4. Verifiable Exhibits
 Every evidence card surfaces the **exact excerpt snippet** retrieved from public indices with verified outbound links (`rel="noopener noreferrer"`).
@@ -169,8 +174,8 @@ Every evidence card surfaces the **exact excerpt snippet** retrieved from public
 ## 🚀 Quickstart
 
 ### Prerequisites
-- **Node.js** $\ge 22.0.0$
-- **npm** $\ge 10.0.0$
+- **Node.js** ≥ 22.0.0
+- **npm** ≥ 10.0.0
 - **MongoDB** *(Optional — automatic fallback to in-memory store for zero-dependency local dev)*
 
 ### 1. Clone & Configure
