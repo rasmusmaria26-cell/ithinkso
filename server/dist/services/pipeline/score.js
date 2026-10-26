@@ -28,8 +28,25 @@ export function overlapPercent(matchedCount, totalFeatures) {
     const raw = Math.round((matchedCount / totalFeatures) * 100);
     return Math.max(0, Math.min(100, raw));
 }
+function countSubstantiveItems(items) {
+    if (!items || !items.length)
+        return 0;
+    return items.filter((item) => {
+        const text = item.trim().toLowerCase();
+        if (text.length < 5)
+            return false;
+        if (text.includes("no novel") ||
+            text.includes("none identified") ||
+            text.includes("nothing novel") ||
+            text.includes("no distinct") ||
+            text.includes("n/a")) {
+            return false;
+        }
+        return true;
+    }).length;
+}
 export function computeScore(input) {
-    const { competitors, leadsConsidered, statuses } = input;
+    const { competitors, leadsConsidered, statuses, whatsNew, gaps, features } = input;
     const relevant = competitors
         .filter((c) => c.relevant)
         .map((c) => c.overlap_percent)
@@ -39,7 +56,71 @@ export function computeScore(input) {
     const meanTop3 = top3.length
         ? Math.round(top3.reduce((sum, n) => sum + n, 0) / top3.length)
         : 0;
-    const novelty = Math.max(0, Math.min(100, 100 - Math.round(0.7 * maxOverlap + 0.3 * meanTop3)));
+    let novelty;
+    const hasForensicContext = whatsNew !== undefined || gaps !== undefined || features !== undefined;
+    if (relevant.length === 0) {
+        novelty = 100;
+    }
+    else if (!hasForensicContext) {
+        // Baseline pure formula for backward-compatible runs / baseline tests
+        novelty = Math.max(0, Math.min(100, 100 - Math.round(0.7 * maxOverlap + 0.3 * meanTop3)));
+    }
+    else {
+        // --- MULTI-FACTOR FORENSIC NOVELTY ENGINE ---
+        // 1. Base blend of top matches
+        const baseOverlap = relevant.length === 1 ? maxOverlap : 0.65 * maxOverlap + 0.35 * meanTop3;
+        let score = 100 - baseOverlap;
+        // 2. Core Feature Differentiation:
+        // Feature #1 is the primary core mechanic. If the top competitor missed Feature #1,
+        // the user's defining innovation remains uncolonized despite secondary utility overlap.
+        const relevantCompetitors = competitors.filter((c) => c.relevant);
+        const topCompetitor = relevantCompetitors[0];
+        const topMatchesCore = features && features.length > 0 && topCompetitor
+            ? topCompetitor.features_matched?.some((f) => f.n === 1)
+            : null;
+        if (topMatchesCore === false) {
+            score += 12; // Core mechanic untouched
+        }
+        else if (topMatchesCore === true && topCompetitor && topCompetitor.overlap_percent >= 75) {
+            score -= 6; // Core mechanic directly matched
+        }
+        // 3. Forensic White Space Signals (whats_new & gaps)
+        const substantiveWhatsNew = countSubstantiveItems(whatsNew);
+        const substantiveGaps = countSubstantiveItems(gaps);
+        if (substantiveWhatsNew > 0 || substantiveGaps > 0) {
+            score += Math.min(16, substantiveWhatsNew * 4) + Math.min(6, substantiveGaps * 2);
+        }
+        else if (whatsNew && whatsNew.length > 0) {
+            score -= 6; // Explicit absence of novel additions
+        }
+        // 4. Competitive Density & Market Saturation
+        const relevantCount = relevant.length;
+        if (relevantCount === 1) {
+            score += 6; // Blue ocean: lone competitor
+        }
+        else if (relevantCount === 2) {
+            score += 2;
+        }
+        else if (relevantCount >= 4) {
+            score -= Math.min(10, (relevantCount - 3) * 3); // Red ocean: crowded market
+        }
+        // 5. Multi-Channel Commercialization
+        const distinctSources = new Set(relevantCompetitors.map((c) => c.source)).size;
+        if (relevantCount > 0 && distinctSources === 1) {
+            score += 4; // Siloed in one ecosystem
+        }
+        else if (distinctSources >= 3) {
+            score -= 5; // Omnipresent across GitHub, npm, App Store & Web
+        }
+        // 6. Dynamic Range Calibration across Verdict Bands
+        if (maxOverlap >= ALREADY_EXISTS_AT) {
+            score = Math.min(35, score);
+        }
+        else if (maxOverlap < PARTLY_EXISTS_AT) {
+            score = Math.max(65, score);
+        }
+        novelty = Math.max(0, Math.min(100, Math.round(score)));
+    }
     const failedSources = statuses.filter((s) => !s.ok).length;
     let verdict;
     let reason = null;

@@ -18,7 +18,7 @@
  *   gates: fewer than 3 leads considered, or 2+ sources failed -> inconclusive
  */
 
-import type { Competitor, SourceStatus, Verdict } from "../../types/case.js";
+import type { Competitor, Feature, SourceStatus, Verdict } from "../../types/case.js";
 
 export const ALREADY_EXISTS_AT = 70;
 export const PARTLY_EXISTS_AT = 35;

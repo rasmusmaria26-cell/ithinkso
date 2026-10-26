@@ -192,6 +192,9 @@ export async function runPipeline(input) {
             competitors: scored.competitors,
             leadsConsidered: leads.length,
             statuses,
+            whatsNew: judge.whats_new,
+            gaps: judge.gaps,
+            features,
         });
         const topCompetitor = scored.competitors.find((c) => c.relevant);
         const result = {
