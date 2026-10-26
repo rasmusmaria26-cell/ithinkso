@@ -6,7 +6,7 @@
     },
     "server": {
       "root": "server",
-      "entrypoint": "dist/app.js",
+      "entrypoint": "dist/app.mjs",
       "buildCommand": "npm run build"
     }
   },
