@@ -1,0 +1,37 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+*.local
+
+# spike output (may contain snippets / keys in error text)
+spike/out/
+spike/*.log
+
+# logs
+logs/
+*.log
+npm-debug.log*
+
+# editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# coverage
+coverage/
+
+# misc
+*.pem
+.cache/
