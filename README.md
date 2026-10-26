@@ -2,6 +2,8 @@
 
 <div align="center">
 
+[![Live Demo](https://img.shields.io/badge/Live_App-ithinkso.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://ithinkso.vercel.app/)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
@@ -12,7 +14,7 @@
 
 **Type an idea. Scour live public code, package registries, and app stores in parallel. Uncover genuine existing competitors and pinpoint what's truly novel—without sycophantic flattery or hype.**
 
-[Features](#-key-features) • [Detective Desk Aesthetic](#-the-detective-desk-aesthetic) • [Evidence Integrity](#-evidence-integrity-guarantee) • [Architecture](#-system-architecture) • [Quickstart](#-quickstart) • [API](#-api-endpoints) • [Deployment](#-deployment)
+[🌐 Live Demo](https://ithinkso.vercel.app/) • [Features](#-key-features) • [Detective Desk Aesthetic](#-the-detective-desk-aesthetic) • [Evidence Integrity](#-evidence-integrity-guarantee) • [Architecture](#-system-architecture) • [Quickstart](#-quickstart) • [API](#-api-endpoints) • [Deployment](#-deployment)
 
 </div>
 
@@ -342,6 +344,8 @@ npm --prefix server test
 ## 🚢 Deployment
 
 ### Deploying to Vercel
+The production app is live at **[ithinkso.vercel.app](https://ithinkso.vercel.app/)**.
+
 The repository includes a ready-to-deploy [`vercel.json`](vercel.json) that configures the application for full-stack monorepo hosting:
 - Frontend routes serve the optimized static Vite bundle.
 - `/api/*` and `/r/*` route to the Express server running as a serverless function.
